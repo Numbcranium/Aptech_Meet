@@ -1,0 +1,778 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Live Presence & Room Management System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sockjs-client/1.6.1/sockjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/stomp.js/2.3.3/stomp.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .main-grid {
+            display: grid;
+            grid-template-columns: 350px 1fr;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .card {
+            background: white;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            padding: 25px;
+        }
+
+        .card h2 {
+            color: #667eea;
+            margin-bottom: 20px;
+            font-size: 1.5rem;
+            border-bottom: 2px solid #f0f0f0;
+            padding-bottom: 10px;
+        }
+
+        .connection-panel {
+            display: grid;
+            gap: 15px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            font-weight: 500;
+        }
+
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dc3545;
+            animation: pulse 2s infinite;
+        }
+
+        .status-dot.connected {
+            background: #28a745;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+            width: 100%;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(220, 53, 69, 0.4);
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover:not(:disabled) {
+            background: #218838;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .activity-feed {
+            height: 400px;
+            overflow-y: auto;
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .activity-item {
+            padding: 12px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+            background: white;
+            border-left: 4px solid #667eea;
+            animation: slideIn 0.3s ease-out;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateX(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(0);
+            }
+        }
+
+        .activity-item.system {
+            border-left-color: #ffc107;
+        }
+
+        .activity-item.error {
+            border-left-color: #dc3545;
+            background: #fff5f5;
+        }
+
+        .activity-item.success {
+            border-left-color: #28a745;
+        }
+
+        .activity-time {
+            font-size: 0.75rem;
+            color: #6c757d;
+            margin-bottom: 4px;
+        }
+
+        .activity-content {
+            color: #333;
+            font-size: 0.9rem;
+        }
+
+        .users-grid {
+            display: grid;
+            gap: 10px;
+        }
+
+        .user-card {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 12px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            transition: transform 0.2s;
+        }
+
+        .user-card:hover {
+            transform: translateX(5px);
+            background: #e9ecef;
+        }
+
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+
+        .user-details {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .user-name {
+            font-weight: 600;
+            color: #333;
+        }
+
+        .user-room {
+            font-size: 0.85rem;
+            color: #6c757d;
+        }
+
+        .badge {
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-online {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 5px;
+        }
+
+        .stat-label {
+            color: #6c757d;
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #6c757d;
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 10px;
+            opacity: 0.3;
+        }
+
+        @media (max-width: 1024px) {
+            .main-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .heartbeat-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-left: 5px;
+            animation: heartbeat 1.5s infinite;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.3); opacity: 0.7; }
+        }
+
+        .quick-actions {
+            display: grid;
+            gap: 10px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <div class="header">
+        <h1>🔴 Live Presence & Room Management</h1>
+        <p>Real-time WebSocket presence tracking system</p>
+        <p style="font-size: 0.9rem; margin-top: 5px;">APTECH PORT HARCOURT - Backend Engineering</p>
+    </div>
+
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-value" id="totalUsers">0</div>
+            <div class="stat-label">Online Users</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="currentRoom">-</div>
+            <div class="stat-label">Current Room</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="roomUsers">0</div>
+            <div class="stat-label">Room Members</div>
+        </div>
+    </div>
+
+    <div class="main-grid">
+        <!-- Left Panel: Connection & Controls -->
+        <div class="card">
+            <h2>Connection</h2>
+
+            <div class="status-indicator">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">Disconnected</span>
+            </div>
+
+            <div class="connection-panel">
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" placeholder="Enter your username" value="">
+                </div>
+
+                <div class="form-group">
+                    <label for="roomId">Room ID</label>
+                    <select id="roomId">
+                        <option value="general">General</option>
+                        <option value="engineering">Engineering</option>
+                        <option value="design">Design</option>
+                        <option value="marketing">Marketing</option>
+                        <option value="random">Random</option>
+                    </select>
+                </div>
+
+                <button class="btn btn-primary" id="connectBtn" onclick="connect()">
+                    Connect to WebSocket
+                </button>
+
+                <button class="btn btn-success" id="joinBtn" onclick="joinRoom()" disabled>
+                    Join Room
+                </button>
+
+                <button class="btn btn-danger" id="leaveBtn" onclick="leaveRoom()" disabled>
+                    Leave Room
+                </button>
+            </div>
+
+            <div class="quick-actions">
+                <button class="btn btn-primary" id="getRoomPresenceBtn" onclick="getRoomPresence()" disabled>
+                    🔍 Get Room Presence
+                </button>
+                <button class="btn btn-primary" id="getOnlineUsersBtn" onclick="getOnlineUsers()" disabled>
+                    👥 Get All Online Users
+                </button>
+            </div>
+        </div>
+
+        <!-- Right Panel: Activity Feed & Users -->
+        <div>
+            <div class="card" style="margin-bottom: 20px;">
+                <h2>Activity Feed</h2>
+                <div class="activity-feed" id="activityFeed">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">📡</div>
+                        <p>Connect to see real-time activity</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>Room Members <span id="roomMembersCount">(0)</span></h2>
+                <div class="users-grid" id="roomUsers">
+                    <div class="empty-state">
+                        <div class="empty-state-icon">👤</div>
+                        <p>Join a room to see members</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <h2>All Online Users <span id="allUsersCount">(0)</span></h2>
+        <div class="users-grid" id="allUsers">
+            <div class="empty-state">
+                <div class="empty-state-icon">🌐</div>
+                <p>No users online</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let stompClient = null;
+    let currentUsername = null;
+    let currentRoomId = null;
+    let isConnected = false;
+    let heartbeatInterval = null;
+
+    // Generate random username
+    function generateUsername() {
+        const adjectives = ['Happy', 'Lucky', 'Swift', 'Bright', 'Cool', 'Smart', 'Bold', 'Wise'];
+        const nouns = ['Tiger', 'Eagle', 'Dolphin', 'Fox', 'Wolf', 'Hawk', 'Lion', 'Bear'];
+        const adj = adjectives[Math.floor(Math.random() * adjectives.length)];
+        const noun = nouns[Math.floor(Math.random() * nouns.length)];
+        return `${adj}${noun}${Math.floor(Math.random() * 100)}`;
+    }
+
+    // Set initial username
+    document.getElementById('username').value = generateUsername();
+
+    function connect() {
+        const username = document.getElementById('username').value.trim();
+        if (!username) {
+            addActivity('Please enter a username', 'error');
+            return;
+        }
+
+        addActivity('Connecting to WebSocket server...', 'system');
+
+        const socket = new SockJS('/ws-presence');
+        stompClient = Stomp.over(socket);
+
+        stompClient.connect({}, onConnected, onError);
+    }
+
+    function onConnected() {
+        isConnected = true;
+        currentUsername = document.getElementById('username').value.trim();
+
+        updateConnectionStatus(true);
+        addActivity('✅ Connected to WebSocket server', 'success');
+
+        // Subscribe to user-specific queue
+        stompClient.subscribe('/user/queue/reply', onMessageReceived);
+
+        // Enable join button
+        document.getElementById('joinBtn').disabled = false;
+        document.getElementById('connectBtn').disabled = true;
+        document.getElementById('username').disabled = true;
+
+        // Start heartbeat
+        startHeartbeat();
+    }
+
+    function onError(error) {
+        updateConnectionStatus(false);
+        addActivity('❌ Connection failed: ' + error, 'error');
+        console.error('Connection error:', error);
+    }
+
+    function joinRoom() {
+        if (!isConnected) {
+            addActivity('Not connected to server', 'error');
+            return;
+        }
+
+        const roomId = document.getElementById('roomId').value;
+        currentRoomId = roomId;
+
+        const message = {
+            type: 'JOIN',
+            username: currentUsername,
+            roomId: roomId,
+            timestamp: new Date().toISOString()
+        };
+
+        stompClient.send('/app/join', {}, JSON.stringify(message));
+        addActivity(`📥 Joining room: ${roomId}...`, 'system');
+
+        // Subscribe to room topic
+        stompClient.subscribe(`/topic/room.${roomId}`, onRoomMessage);
+
+        // Update UI
+        document.getElementById('joinBtn').disabled = true;
+        document.getElementById('leaveBtn').disabled = false;
+        document.getElementById('roomId').disabled = true;
+        document.getElementById('getRoomPresenceBtn').disabled = false;
+        document.getElementById('getOnlineUsersBtn').disabled = false;
+        document.getElementById('currentRoom').textContent = roomId;
+    }
+
+    function leaveRoom() {
+        if (!currentRoomId) return;
+
+        const message = {
+            type: 'LEAVE',
+            timestamp: new Date().toISOString()
+        };
+
+        stompClient.send('/app/leave', {}, JSON.stringify(message));
+        addActivity(`📤 Leaving room: ${currentRoomId}...`, 'system');
+
+        // Update UI
+        document.getElementById('joinBtn').disabled = false;
+        document.getElementById('leaveBtn').disabled = true;
+        document.getElementById('roomId').disabled = false;
+        document.getElementById('getRoomPresenceBtn').disabled = true;
+        document.getElementById('currentRoom').textContent = '-';
+        currentRoomId = null;
+
+        // Clear room users
+        document.getElementById('roomUsers').innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><p>Join a room to see members</p></div>';
+        document.getElementById('roomMembersCount').textContent = '(0)';
+    }
+
+    function getRoomPresence() {
+        if (!currentRoomId) {
+            addActivity('Not in any room', 'error');
+            return;
+        }
+
+        const message = {
+            type: 'ROOM_PRESENCE',
+            roomId: currentRoomId,
+            timestamp: new Date().toISOString()
+        };
+
+        stompClient.send('/app/room/presence', {}, JSON.stringify(message));
+        addActivity('🔍 Requesting room presence...', 'system');
+    }
+
+    function getOnlineUsers() {
+        const message = {
+            type: 'ONLINE_USERS',
+            timestamp: new Date().toISOString()
+        };
+
+        stompClient.send('/app/users/online', {}, JSON.stringify(message));
+        addActivity('👥 Requesting all online users...', 'system');
+    }
+
+    function startHeartbeat() {
+        // Send ping every 30 seconds
+        heartbeatInterval = setInterval(() => {
+            if (isConnected && stompClient) {
+                const message = {
+                    type: 'PING',
+                    timestamp: new Date().toISOString()
+                };
+                stompClient.send('/app/ping', {}, JSON.stringify(message));
+            }
+        }, 30000);
+    }
+
+    function onMessageReceived(payload) {
+        const message = JSON.parse(payload.body);
+        console.log('Received message:', message);
+
+        switch(message.type) {
+            case 'ACK':
+                addActivity(`✅ ${message.content}`, 'success');
+                break;
+            case 'ERROR':
+                addActivity(`❌ ${message.content}`, 'error');
+                break;
+            case 'ROOM_PRESENCE':
+                handleRoomPresence(message.data);
+                break;
+            case 'ONLINE_USERS':
+                handleOnlineUsers(message.data);
+                break;
+        }
+    }
+
+    function onRoomMessage(payload) {
+        const message = JSON.parse(payload.body);
+        console.log('Room message:', message);
+
+        switch(message.type) {
+            case 'SYSTEM':
+                addActivity(`📢 ${message.content}`, 'system');
+                break;
+            case 'ROOM_PRESENCE':
+                handleRoomPresence(message.data);
+                break;
+        }
+    }
+
+    function handleRoomPresence(data) {
+        const container = document.getElementById('roomUsers');
+        const count = data.userCount || 0;
+
+        document.getElementById('roomMembersCount').textContent = `(${count})`;
+        document.getElementById('roomUsers').textContent = count.toString();
+
+        if (count === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">👤</div><p>No users in this room</p></div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        data.users.forEach(user => {
+            const userCard = createUserCard(user);
+            container.appendChild(userCard);
+        });
+
+        addActivity(`📊 Room "${data.roomId}" has ${count} user(s)`, 'system');
+    }
+
+    function handleOnlineUsers(users) {
+        const container = document.getElementById('allUsers');
+        const count = users.length;
+
+        document.getElementById('allUsersCount').textContent = `(${count})`;
+        document.getElementById('totalUsers').textContent = count.toString();
+
+        if (count === 0) {
+            container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">🌐</div><p>No users online</p></div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        users.forEach(user => {
+            const userCard = createUserCard(user);
+            container.appendChild(userCard);
+        });
+
+        addActivity(`📊 Total online users: ${count}`, 'system');
+    }
+
+    function createUserCard(user) {
+        const card = document.createElement('div');
+        card.className = 'user-card';
+
+        const initial = user.username.charAt(0).toUpperCase();
+
+        card.innerHTML = `
+            <div class="user-info">
+                <div class="user-avatar">${initial}</div>
+                <div class="user-details">
+                    <div class="user-name">${user.username}</div>
+                    <div class="user-room">Room: ${user.roomId}</div>
+                </div>
+            </div>
+            <span class="badge badge-online">ONLINE</span>
+        `;
+
+        return card;
+    }
+
+    function addActivity(content, type = 'info') {
+        const feed = document.getElementById('activityFeed');
+
+        // Remove empty state if exists
+        const emptyState = feed.querySelector('.empty-state');
+        if (emptyState) {
+            emptyState.remove();
+        }
+
+        const item = document.createElement('div');
+        item.className = `activity-item ${type}`;
+
+        const time = new Date().toLocaleTimeString();
+        item.innerHTML = `
+            <div class="activity-time">${time}</div>
+            <div class="activity-content">${content}</div>
+        `;
+
+        feed.insertBefore(item, feed.firstChild);
+
+        // Keep only last 50 items
+        while (feed.children.length > 50) {
+            feed.removeChild(feed.lastChild);
+        }
+    }
+
+    function updateConnectionStatus(connected) {
+        const statusDot = document.getElementById('statusDot');
+        const statusText = document.getElementById('statusText');
+
+        if (connected) {
+            statusDot.classList.add('connected');
+            statusText.innerHTML = 'Connected <span class="heartbeat-indicator"></span>';
+        } else {
+            statusDot.classList.remove('connected');
+            statusText.textContent = 'Disconnected';
+        }
+    }
+
+    // Handle page unload
+    window.addEventListener('beforeunload', () => {
+        if (heartbeatInterval) {
+            clearInterval(heartbeatInterval);
+        }
+        if (stompClient && isConnected) {
+            stompClient.disconnect();
+        }
+    });
+
+    // Auto-refresh room presence every 10 seconds if in a room
+    setInterval(() => {
+        if (isConnected && currentRoomId) {
+            getRoomPresence();
+        }
+    }, 10000);
+</script>
+</body>
+</html>
