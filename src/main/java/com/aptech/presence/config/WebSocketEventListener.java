@@ -53,13 +53,23 @@ public class WebSocketEventListener {
 
             // Broadcast updated presence
             var presence = presenceService.getRoomPresence(roomId);
-            WebSocketMessage presenceMsg = WebSocketMessage.builder()
+            WebSocketMessage presenceMsg2 = WebSocketMessage.builder()
                     .type(com.aptech.presence.dto.MessageType.ROOM_PRESENCE)
                     .roomId(roomId)
                     .data(presence)
                     .timestamp(java.time.LocalDateTime.now())
                     .build();
-            messagingTemplate.convertAndSend("/topic/room." + roomId, presenceMsg);
+            messagingTemplate.convertAndSend("/topic/room." + roomId, presenceMsg2);
+
+            // Broadcast updated online users globally
+            var onlineUsers = presenceService.getAllOnlineUsers();
+            WebSocketMessage onlineMsg = WebSocketMessage.builder()
+                    .type(com.aptech.presence.dto.MessageType.ONLINE_USERS)
+                    .data(onlineUsers)
+                    .content(onlineUsers.size() + " users online")
+                    .timestamp(java.time.LocalDateTime.now())
+                    .build();
+            messagingTemplate.convertAndSend("/topic/global", onlineMsg);
 
             log.info("User {} disconnected from room {}", username, roomId);
         }

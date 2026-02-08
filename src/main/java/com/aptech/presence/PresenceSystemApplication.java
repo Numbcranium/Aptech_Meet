@@ -4,10 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
- * Main application class for Live Presence & Room Management System
- *
- * @author APTECH PORT HARCOURT
- * Backend Engineering - WebSocket Implementation
+ * Main application class for Aptech_Meet
  */
 @SpringBootApplication
 public class PresenceSystemApplication {

@@ -71,6 +71,9 @@ public class PresenceController {
             // Send updated room presence to all room members
             broadcastRoomPresence(roomId);
 
+            // Also send current online users to all
+            broadcastOnlineUsers();
+
             log.info("User {} successfully joined room {}", username, roomId);
 
         } catch (Exception e) {
@@ -114,6 +117,9 @@ public class PresenceController {
 
                 // Send updated room presence
                 broadcastRoomPresence(roomId);
+
+                // Broadcast updated online users
+                broadcastOnlineUsers();
 
                 log.info("User {} successfully left room {}", username, roomId);
             } else {
@@ -244,5 +250,16 @@ public class PresenceController {
                 .timestamp(LocalDateTime.now())
                 .build();
         messagingTemplate.convertAndSend("/topic/room." + roomId, presenceMsg);
+    }
+
+    private void broadcastOnlineUsers() {
+        List<UserPresence> onlineUsers = presenceService.getAllOnlineUsers();
+        WebSocketMessage onlineMsg = WebSocketMessage.builder()
+                .type(MessageType.ONLINE_USERS)
+                .data(onlineUsers)
+                .content(onlineUsers.size() + " users online")
+                .timestamp(LocalDateTime.now())
+                .build();
+        messagingTemplate.convertAndSend("/topic/global", onlineMsg);
     }
 }
